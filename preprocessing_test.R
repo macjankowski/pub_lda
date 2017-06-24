@@ -27,6 +27,7 @@ posterior(lda$topicmodel)[2]
 res <- trainAndPredict(tree_number, lda$ldaTrainData, tfData$cleanedTrainLabels, 
                       lda$ldaTestData, tfData$cleanedTestLabels)
 
+
 plotResults(res$testResult$threshold, res$testResult$bridgeRatio, res$testResult$errorRatio)
 
 res$model
