@@ -19,12 +19,18 @@ test <- function(model, testMatrix, test_code, threshold = seq(0,1,by=0.01)) {
     confidence_value_for_threshold <- confidence_value > threshold
     indices_for_threshold <- which(confidence_value_for_threshold)
     
-    if(length(indices_for_threshold) > 0){
+    if(length(indices_for_threshold) > 1){
       out_for_threshold <- out[indices_for_threshold,]
       test_code_for_threshold <-   test_code[indices_for_threshold]
       
-      best.class.index <- apply(out_for_threshold,1, which.max)
-      best.class <- column.names[best.class.index]
+      if(length(indices_for_threshold) == 1){
+        best.class.index <- which.max(out_for_threshold)
+        best.class <- column.names[best.class.index]
+      }else{
+        best.class.index <- apply(out_for_threshold,1, which.max)
+        best.class <- column.names[best.class.index]
+      }
+     
       test.result <- best.class[best.class == test_code_for_threshold]
       error <- 1-length(test.result)/length(test_code_for_threshold)
       
@@ -46,3 +52,18 @@ test <- function(model, testMatrix, test_code, threshold = seq(0,1,by=0.01)) {
   
   list(threshold=threshold, bridgeRatio=bridge_ratio, errorRatio=error_ratio)
 }
+
+trainAndPredictSimple <- function(tree_number, trainData, trainLabels, testData, testLabels){
+  start.time <- Sys.time()
+  model <- randomForest(x=as.matrix(trainData), y=trainLabels, ntree=tree_number, keep.forest=TRUE)
+  end.time <- Sys.time()
+  time.taken <- end.time - start.time
+  duration <- time.taken
+  
+  out <- predict(model, as.matrix(testData))
+  test.result <- out[out != testLabels]
+  errorRate <- length(test.result)/length(testLabels)
+  errorRate
+}
+
+

@@ -1,27 +1,10 @@
 library("tm")
+library(tidytext)
 
-cleanData <- function(data) {
-  data$text <- stringi::stri_trans_general(data$text, "latin-ascii")
-  
-  # Replace blank space (“***”)
-  data$text <- gsub("***", "", data$text, fixed=TRUE)
-  
-  # Remove punctuation
-  #data$text <- gsub("[[:punct:]]", "", data$text)
-  
-  # Remove tabs
-  data$text <- gsub("[ |\t]{2,}", "", data$text)
-  
-  # Remove blank spaces at the beginning
-  data$text <- gsub("^ ", "", data$text)
-  
-  # Remove blank spaces at the end
-  data$text <- gsub(" $", "", data$text)
-  
-  data
-}
 
-cleanTwitterData <- function(data) {
+cleanData <- function(filePath) {
+  data <- read.csv(filePath, sep=";")  
+  dim(data)
   
   #convert all text to lower case
   data$text <- tolower(data$text)
@@ -51,14 +34,44 @@ cleanTwitterData <- function(data) {
   data
 }
 
-labelsToNumeric <- function(data, labelMapping){
+labelsToNumeric <- function(data){
+  labelMapping <- data.frame(message = c("attack", "constituency", "information", "media", "mobilization", "personal", "policy", "support", "other"),
+                             label = c(0,1,2,3,4,5,6,7,8))
   
-  shuffledWithNumericLabels <- merge(data, labelMapping, by.x = "label", by.y = "label")[sample(nrow(data)),]
+  shuffledWithNumericLabels <- merge(data, labelMapping, by.x = "message", by.y = "message")[sample(nrow(data)),]
   
   shuffledWithNumericLabels[,c(3,2)]
 }
 
+prepareTfIdfWithLabels <- function(data, sparseLevel=.998, ngramCount = 1){
+  
+  start.time <- Sys.time()
+  code <- as.factor(data$label)
+  
+  tf_matrix <- create_matrix(data$text, language="english", removeNumbers=FALSE, stemWords=FALSE, 
+                             removeSparseTerms=sparseLevel, ngramLength=ngramLength)
+  
+  dim(tf_matrix)
+  
+  rowTotals <- apply(tf_matrix, 1, sum) #Find the sum of words in each Document
+  cleanedTfMatrix   <- tf_matrix[rowTotals> 0, ]
+  cleanedLabels <- code[rowTotals> 0]
+  
+  tfIdfMatrix=weightTfIdf(cleanedTfMatrix)
+
+  end.time <- Sys.time()
+  time.taken <- end.time - start.time
+  duration <- time.taken
+
+  list(tfIdfMatrix=tfIdfMatrix, labels=cleanedLabels, duration=duration)
+}
+
 partitionData <- function(data){
+  
+  tfidf <- data$tfIdfMatrix
+  tfIdfAsDf <- tidy(tfidf)
+  
+  dfData <- data$labels, 
   
   ## 75% of the sample size
   smp_size <- floor(0.80 * nrow(data))
@@ -73,54 +86,19 @@ partitionData <- function(data){
   list(train = train, test = test)
 }
 
-prepareTfIdfWithLabels <- function(politicsData, sparseLevel=.998, ngramCount = 1){
-  
+
+
+
+
+createTfIdfMatrix <- function(data, sparseLevel=0,  ngramLength = 1) {
   start.time <- Sys.time()
-  train_code <- as.factor(politicsData$train$label)
-  test_code <- as.factor(politicsData$test$label)
+
   
-  rawMatrices <- createRawMatrices(politicsData, sparseLevel=sparseLevel, ngramLength=ngramCount)
-  
-  testRowTotals <- apply(rawMatrices$rawTestMatrix, 1, sum) #Find the sum of words in each Document
-  cleanedTestMatrix   <- rawMatrices$rawTestMatrix[testRowTotals> 0, ]
-  cleanedTestLabels <- test_code[testRowTotals> 0]
-  
-  cleanedTestLabels <- factor(cleanedTestLabels, levels=c(0:24))
-  
-  rowTotals <- apply(rawMatrices$rawTrainMatrix, 1, sum) #Find the sum of words in each Document
-  cleanedTrainMatrix   <- rawMatrices$rawTrainMatrix[rowTotals> 0, ]
-  cleanedTrainLabels <- train_code[rowTotals> 0]
   end.time <- Sys.time()
   time.taken <- end.time - start.time
   duration <- time.taken
   
-  tfIdfTrainMatrix=weightTfIdf(cleanedTrainMatrix)
-  tfIdfTestMatrix=weightTfIdf(cleanedTestMatrix)
   
-  list(cleanedTrainMatrix=cleanedTrainMatrix, cleanedTrainLabels=cleanedTrainLabels,
-       cleanedTestMatrix=cleanedTestMatrix, cleanedTestLabels=cleanedTestLabels, duration=duration)
-}
-
-
-
-createRawMatrices <- function(politicsData, sparseLevel=0,  ngramLength = 1) {
-  start.time <- Sys.time()
-  #data <- prepareImsData(trainFile, testFile)
-  train.data = politicsData$train
-  test.data = politicsData$test
-  
-  train_doc_matrix <- create_matrix(train.data$text, language="english", removeNumbers=FALSE, stemWords=FALSE, 
-                                    removeSparseTerms=sparseLevel, ngramLength=ngramLength)
-  
-  #Run this:
-  #   trace("create_matrix",edit=T)
-  #In the source code box that pops up, line 42 will have a misspelling of the word "acronym". Change the "A" to an "a" and hit "Save" - it should work fine after that.
-  
-  test_doc_matrix <- create_matrix(test.data$text, language="english", removeNumbers=FALSE, stemWords=FALSE, 
-                                   removeSparseTerms=sparseLevel, originalMatrix = train_doc_matrix, ngramLength=ngramLength)
-  
-  dim(train_doc_matrix)
-  dim(test_doc_matrix)
   end.time <- Sys.time()
   time.taken <- end.time - start.time
   duration <- time.taken
@@ -166,9 +144,6 @@ create_matrix <- function (textColumns, language = "english", minDocFreq = 1,
   trainingColumn <- sapply(as.vector(trainingColumn, mode = "character"), 
                            iconv, to = "UTF8", sub = "byte")
   corpus <- VCorpus(VectorSource(trainingColumn), readerControl = list(language = language))
-  
-  corpus <- tm_map(corpus, content_transformer(tolower))
-
   matrix <- DocumentTermMatrix(corpus, control = control)
   if (removeSparseTerms > 0) 
     matrix <- removeSparseTerms(matrix, removeSparseTerms)

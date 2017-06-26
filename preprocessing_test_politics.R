@@ -12,7 +12,10 @@ topic_number <- 30
 filePath = 'C:/doc/s/sem2/chudy/repo/pub_lda/politiciants data.csv'
 tweetsAll <- cleanData(filePath)
 
-tweetsAllLabelsNumeric <- labelsToNumeric(tweetsAll)
+labelMapping <- data.frame(message = c("attack", "constituency", "information", "media", "mobilization", "personal", "policy", "support", "other"),
+                           label = c(0,1,2,3,4,5,6,7,8))
+
+tweetsAllLabelsNumeric <- labelsToNumeric(tweetsAll, labelMapping)
 
 tweets <- partitionData(tweetsAllLabelsNumeric)
 dim(tweets$train)
