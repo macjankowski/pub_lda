@@ -53,6 +53,12 @@ test <- function(model, testMatrix, test_code, threshold = seq(0,1,by=0.01)) {
   list(threshold=threshold, bridgeRatio=bridge_ratio, errorRatio=error_ratio)
 }
 
+distributionOfConfidence <- function(model, testMatrix){
+  out <- predict(model, as.matrix(testMatrix), type="prob")
+  confidence_value <- apply(out,1, max)
+  confidence_value
+}
+
 trainAndPredictSimple <- function(tree_number, trainData, trainLabels, testData, testLabels){
   start.time <- Sys.time()
   model <- randomForest(x=as.matrix(trainData), y=trainLabels, ntree=tree_number, keep.forest=TRUE)

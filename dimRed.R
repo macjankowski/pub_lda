@@ -1,5 +1,6 @@
 library("topicmodels")
 library("lsa")
+library("svs")
 
 SEED <- 2100
 
@@ -68,3 +69,8 @@ createLSATest <- function(rawTestMatrix, lsa_m){
   
   list(matrix=lsa.testing.set, duration=duration)
 }
+
+createPLSA <- function(tfData, topic_number){
+  fast_plsa(tfData, topic_number)
+}
+

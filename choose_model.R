@@ -1,11 +1,43 @@
+
+library("ldatuning")
+
 source('./dimRed.R')
 source('./classification.R')
 
 
+
+
 printf <- function(...) cat(sprintf(...), sep='\n', file=stderr())
 
+estimateTopicsCount4Methods <- function(from,to,step, tfidfData, methods = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014")){
+  
+  estimateTopicsCount4MethodsRange(range = seq(from = from, to = to, by = step), 
+                              tfidfData = tfidfData, methods = methods)
+  
+}
 
-estimateTopicsCount <- function(from,to,step, tfidfData, tree_number){
+estimateTopicsCount4MethodsRange <- function(range, tfidfData, methods = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014")){
+
+  
+  start.time <- Sys.time()
+  
+  result <- FindTopicsNumber(
+    tfidfData$cleanedTrainMatrix,
+    topics = range,
+    metrics = methods,
+    method = "Gibbs",
+    control = list(seed = 77),
+    mc.cores = 4L,
+    verbose = TRUE
+  )
+  end.time <- Sys.time()
+  time.taken <- end.time - start.time
+  duration <- time.taken
+  
+  list(ldatuningResults=result, duration=duration)
+}
+
+estimateTopicsCountLSA <- function(from,to,step, tfidfData, tree_number){
   
   start.time <- Sys.time()
   topicCounts <- seq(from,to,step)
