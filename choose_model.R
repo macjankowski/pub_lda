@@ -60,7 +60,7 @@ runLsaForKTopics <- function(k, tfidfData, tree_number){
   
   start.time <- Sys.time()
   
-  printf("Calculating lda fot %d topics\n",k)
+  printf("Calculating lsa fot %d topics\n",k)
   lsa <- calculateLSA(tfidfData, k)
   
   printf("Training lsa took  %f seconds\n",lsa$duration)
@@ -75,3 +75,88 @@ runLsaForKTopics <- function(k, tfidfData, tree_number){
   
   list(error=error, topicCount=k, duration=lsa$duration)
 }
+
+geometricMean <- function(x){
+  exp(mean(log(x)))
+}
+
+avg_mi_single_model <- function(data, labels){
+  f <- function(i){ 
+    d <- as.numeric(discretize(data[,i], method = "frequency", categories = 25, onlycuts=FALSE))
+    mi.plugin(rbind(d, as.numeric(labels))) #+ mi.plugin(rbind(as.numeric(labels), d)) 
+  }
+  
+  mis <- sapply(1:length(data[1,]), f)
+  
+  #mis <- as.numeric(discretize(data, method = "frequency", categories = 25, onlycuts=FALSE))
+  
+  print(mean(mis))
+  mean(mis)
+}
+
+avg_mi_all_models <- function(ldaModels, labels){
+  sapply(1:length(ldaModels), function(i){avg_mi_single_model(ldaModels[[i]]$ldaTrainData, labels)})
+}
+
+ 
+
+avg_spearman_single_model_without_mean <- function(data, labels){
+  f <- function(i){ 
+    cor.test(data[,i], as.numeric(labels), method="spearman")$estimate
+  }
+  
+  sapply(1:length(data[1,]), f)
+}
+
+avg_spearman_single_model <- function(data, labels){
+  f <- function(i){ 
+    cor.test(data[,i], as.numeric(labels), method="spearman")$estimate
+  }
+  
+  max(abs((harmonic.mean(sapply(1:length(data[1,]), f)))))
+}
+
+avg_spearman_all_models <- function(ldaModels, labels){
+  sapply(1:models_count, function(i){avg_spearman_single_model(ldaModels[[i]]$ldaTrainData, labels)})
+}
+
+avgEntropyForModel <- function(ldaModel){
+  posterior <- posterior(ldaModel$topicmodel)
+  #entropy.plugin(posterior$terms)
+  N <- length(posterior$terms)
+  mean(apply(posterior$terms, 2, function(doc){
+    entropy.plugin(doc)
+  }))
+}
+
+maxEntropyForModel <- function(ldaModel){
+  posterior <- posterior(ldaModel$topicmodel)
+  N <- length(posterior$terms)
+  max(apply(posterior$terms, 2, function(doc){
+    entropy.plugin(doc)
+  }))
+}
+
+minEntropyForModel <- function(ldaModel){
+  posterior <- posterior(ldaModel$topicmodel)
+  N <- length(posterior$terms)
+  min(apply(posterior$terms, 2, function(doc){
+    entropy.plugin(doc)
+  }))
+}
+
+avgEntropyForPosterior1 <- function(ldaModel){
+  posterior <- posterior(ldaModel$topicmodel)
+  dim(posterior$topics)
+  N <- length(posterior$topics)
+  mean(apply(posterior$topics, 1, function(doc){entropy.plugin(doc)}))
+  #entropy.plugin(posterior$topics)
+}
+
+avgEntropyForPosterior2 <- function(ldaModel){
+  posterior <- posterior(ldaModel$topicmodel)
+  dim(posterior$topics)
+  #mean(apply(posterior$topics, 1, entropy.plugin))
+  entropy.plugin(posterior$topics)
+}
+

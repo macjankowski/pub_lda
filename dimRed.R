@@ -4,18 +4,18 @@ library("svs")
 
 SEED <- 2100
 
-calculateLDA <- function(tfData, topic_number){
+calculateLDA <- function(tfData, topic_number, estimateAlpha=TRUE){
   
   start.time <- Sys.time()
   
-  topicmodel <- LDA(tfData$cleanedTrainMatrix, k=topic_number, control=list(seed=SEED))
+  topicmodel <- LDA(tfData$cleanedTrainMatrix, k=topic_number, control=list(seed=SEED, estimate.alpha=estimateAlpha))
   trainData <- posterior(topicmodel)[2]$topics
   testData <- posterior(topicmodel, tfData$cleanedTestMatrix)[2]$topics
   
   end.time <- Sys.time()
   time.taken <- end.time - start.time
   duration <- time.taken
-  
+  print(paste("Calculated LDA for ",topic_number," topics, duration=",duration," seconds"))
   list(topicmodel=topicmodel, ldaTrainData=trainData, ldaTestData=testData, duration=duration)
 }
 

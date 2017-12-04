@@ -66,10 +66,30 @@ trainAndPredictSimple <- function(tree_number, trainData, trainLabels, testData,
   time.taken <- end.time - start.time
   duration <- time.taken
   
-  out <- predict(model, as.matrix(testData))
+  out <- as.integer(predict(model, as.matrix(testData)))-1
   test.result <- out[out != testLabels]
   errorRate <- length(test.result)/length(testLabels)
   errorRate
 }
 
+predictSimple <- function(model, testData, testLabels){
+  out <- as.integer(predict(model, as.matrix(testData)))-1
+  test.result <- out[out != testLabels]
+  errorRate <- length(test.result)/length(testLabels)
+  errorRate
+}
+
+trainRfOnLda <- function(ldaModel, trainLabels){
+  trainData <- ldaModel$ldaTrainData
+  testData <- ldaModel$ldaTestData
+  rfModel <- randomForest(x=as.matrix(trainData), y=trainLabels, ntree=tree_number, keep.forest=TRUE)
+  rfModel
+}
+
+trainSVMOnLda <- function(ldaModel, trainLabels){
+  trainData <- ldaModel$ldaTrainData
+  testData <- ldaModel$ldaTestData
+  svmModel <- svm(x=as.matrix(trainData), y=trainLabels)
+  svmModel
+}
 

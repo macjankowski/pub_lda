@@ -3,6 +3,8 @@ library("tm")
 cleanData <- function(data) {
   data$text <- stringi::stri_trans_general(data$text, "latin-ascii")
   
+  #data$text <- lapply(data$text, function(x) {iconv(x, "UTF-8", "ASCII", sub="")})
+  
   # Replace blank space (“***”)
   data$text <- gsub("***", "", data$text, fixed=TRUE)
   
@@ -94,8 +96,8 @@ prepareTfIdfWithLabels <- function(politicsData, sparseLevel=.998, ngramCount = 
   time.taken <- end.time - start.time
   duration <- time.taken
   
-  tfIdfTrainMatrix=weightTfIdf(cleanedTrainMatrix)
-  tfIdfTestMatrix=weightTfIdf(cleanedTestMatrix)
+  #tfIdfTrainMatrix=weightTfIdf(cleanedTrainMatrix)
+  #tfIdfTestMatrix=weightTfIdf(cleanedTestMatrix)
   
   list(cleanedTrainMatrix=cleanedTrainMatrix, cleanedTrainLabels=cleanedTrainLabels,
        cleanedTestMatrix=cleanedTestMatrix, cleanedTestLabels=cleanedTestLabels, duration=duration)
