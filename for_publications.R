@@ -2,13 +2,15 @@
 library(reshape2)
 library(ggplot2)
 library(ggplot2)
+library(scales)
+
 
 ######################################### experiment up to 200 topics ##############################################
 
-range_200 <- c(2,5,10, 15, 20, 30, 40, 50, 60, 75, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200)
+range_200 <- c(2,5,10, 15, 20, 30, 40, 50, 60, 75, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200);
 lda_models_200 <- lapply(range_200, function(x){calculateLDA(tfData = tfidfData, topic_number = x)})
 
-trainRfOnLda <- function(ldaModel, trainLabels){
+trainRfOnLda <- function(ldaModel, trainLabels, tree_number=2000){
   trainData <- ldaModel$ldaTrainData
   testData <- ldaModel$ldaTestData
   rfModel <- randomForest(x=as.matrix(trainData), y=trainLabels, ntree=tree_number, keep.forest=TRUE)
@@ -20,11 +22,14 @@ rfModels_200 <- lapply(lda_models_200, function(x){
 })
 
 testLabels <- tfidfData$cleanedTestLabels
+length(testLabels)
+length(trainLabels)
 
 accuracies_200 <- sapply(1:23, function(i){
   predictSimple(rfModels_200[[i]], lda_models_200[[i]]$ldaTestData, testLabels)
 })
-
+accuracies_200
+cbind(range_200, accuracies_200)[subRange,]
 dev.new()
 recognizedClassesForHistogram(testLabels, rfModels_200, lda_models_200, topicNumbers = range_200)
 
@@ -62,7 +67,7 @@ accuracies_200[subRange]
 subRfModels_200 <- rfModels_200[subRange]
 subLdaModels_200 <- lda_models_200[subRange]
 
-res <- predictWithScoreEnsemble(testLabels, subRfModels_200, subLdaModels_200)
+res <- predictWithScoreEnsemble(subRfModels_200, subLdaModels_200)
 errorForEnsembleWithScoreResult(res$classes, res$scores, testLabels)
 
 ######################################### models mean confidence ##############################################
@@ -105,6 +110,10 @@ average_entropy_of_topics <- avgEntropyForModels
 
 moreAccuraciesList <- lapply(more_models, trainAndPredictRf)
 
+rfModels_300_1000 <- lapply(more_models, function(x){
+  trainRfOnLda(x, trainLabels)
+})
+
 moreAccuracies <- unlist(moreAccuraciesList)
 
 random_forest_accuracy_all <- rescale(c(accuracies_200,moreAccuracies))
@@ -121,6 +130,8 @@ ggplot(data = df2_all, aes(x = topics_number, y = value,
   color = factor(variable, labels = c("Average entropy of topics",  "Ang entropy posterior", "Random Forest error")))) + 
     geom_point() + geom_line(size=1) + 
     labs(x = "Topics number", y="Value", color="Variable") + theme_classic(base_size = 18)
+
+
 
 
 ####################################### lsa with rf error #############################################
@@ -150,7 +161,7 @@ ggplot(data = lsa_df2_all, aes(x = lsa_topics_number, y = value, linetype=variab
 
 ##################################### perplexity based ensemble ######################################
 
-chosenModels <- chooseModelUsingPerplexity(tfidfData$cleanedTestMatrix)
+chosenModels <- chooseModelUsingPerplexity(tfidfData$cleanedTestMatrix, extendedModels)
 chosenModels
 length(chosenModels)
 max(chosenModels)
@@ -168,27 +179,9 @@ idxForIthModel <- which(chosenModels == 2)
 ldaTestData <- lda_models_200[[i]]$ldaTestData[idxForIthModel,] #get data for ith model
 predictSimple(rfModels_200[[i]], ldaTestData, testLabels[idxForIthModel])
 
-errorPerplexityEnsemble <- function(chosenModels, lda_models_200, rfModels_200){
-  allRows <- 0
-  errors <- 0
-  print(length(lda_models_200))
-  for(i in 1:length(lda_models_200)){
-    #print(paste("Loop for ",i))
-    idxForIthModel <- which(chosenModels == i)
-    #print(idxForIthModel)
-    ldaTestData <- lda_models_200[[i]]$ldaTestData[idxForIthModel,] #get data for ith model
-    
-    nRowsChosen <- dim(ldaTestData)[1]
-    if(nRowsChosen > 0){
-      error <- predictSimple(rfModels_200[[i]], ldaTestData, testLabels[idxForIthModel])
-      errors = errors + (error * nRowsChosen)
-      allRows = allRows + nRowsChosen
-    }
-  }
-  #print(allRows)
-  errors / allRows
-}
-
+length(subLdaModels_200)
+chosenModels_best_9 <- chooseModelUsingPerplexity(tfidfData$cleanedTestMatrix, subLdaModels_200)
+chosenModels_best_9
 v <- errorPerplexityEnsemble(chosenModels, subLdaModels_200, subRfModels_200)
 v
 
@@ -204,7 +197,7 @@ perModelPerplexity <- lapply(extendedModels, function(m){
   p <- perplexity(m$topicmodel, tfidfData$cleanedTestMatrix)
   p
 })
-
+perModelPerplexity
 length(perModelPerplexity)
 length(topics_number)
 
@@ -217,4 +210,11 @@ dev.new()
 ggplot(data = df2_perplexity_all, aes(x = topics_number, y = value, linetype=variable)) + 
   geom_line() + labs(x = "Topics number", y="Perplexity and Random Forest Error")
 
+v = TRUE
 
+a <- if(v){
+  c(1)
+}else{
+  c(2)
+}
+a       

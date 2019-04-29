@@ -1,4 +1,6 @@
-
+library(scales)
+library(reshape2)
+library(ggplot2)
 
 ######################################### Estimate topic count ENTROPY 300 ##############################################
 
@@ -134,5 +136,86 @@ dirEntropy <- function(alpha, dim){
 dirEntropy(alpha = 137, dim=15)
 multLogBeta(alpha = 1, dim=15)
 
+############################## analyse posterior ###############################
+
+analysePosteriorEntropy(appsRange[1:24], appsLdaModels[1:24], header="Mobile Apps")
+
+############### analyses of average entropy ###########################
+subrange = 1:28
+analyseAverageEntropyNoSvm(appsRange[subrange], appsLdaModels[subrange], appsRfErrors[subrange], header="Mobile Apps")
+
+
+######################################### Estimate topic count conditional entropy ENTROPY ##############################################
+
+appsTrainLabels <- trainLabels
+appsTestLabels <- testLabels
+appsRfErrors <- c(accuracies_200,moreAccuracies)
+
+subrange = 2:28
+
+analyseJoinedEntropyNoSvm(appsRange[subrange], appsLdaModels[subrange], appsTrainLabels, appsRfErrors[subrange], 
+                     header="Mobile Apps, bins=2", bins=2)
+
+analyseJoinedEntropyNoSvm(appsRange[subrange], appsLdaModels[subrange], appsTrainLabels, appsRfErrors[subrange], 
+                          header="Mobile Apps, bins=10", bins=10)
+
+analyseConditionalEntropyNoSvm(appsRange[subrange], appsLdaModels[subrange], appsTrainLabels, appsRfErrors[subrange], 
+                               header="Mobile Apps, bins=25", bins=25, rescale = TRUE, runOnTest = FALSE)
+
+######################################### predict using ensemble ##############################################
+
+subRange <- c(4, 5, 6, 8, 9, 10,11,12,13)
+accuracies_200[subRange]
+subRfModels_200 <- rfModels_200[subRange]
+subLdaModels_200 <- lda_models_200[subRange]
+
+appsRfModels <- c(rfModels_200, rfModels_300_1000)
+
+length(appsRfModels)
+length(appsLdaModels)
+
+res <- predictEnsemble(appsRfModels[subRange], appsLdaModels[subRange])
+errorForEnsembleResult(res, testLabels)
+
+res <- predictWithScoreEnsemble(appsRfModels[subRange], appsLdaModels[subRange])
+errorForEnsembleWithScoreResult(res$classes, res$scores, testLabels)
+
+#analyseEnsemble(appsRfModels[subRange], appsLdaModels[subRange], testLabels)
+
+chosenModels <- chooseModelUsingPerplexity(tfidfData$cleanedTestMatrix, appsLdaModels)
+chosenModels
+
+errorPerplexityEnsemble(chosenModels, appsLdaModels, appsRfModels)
+
+######################################### Analyse mutual information #########################################
+
+appsSubrange=1:10
+analyseMutualInformationNoSvm(appsRange[appsSubrange], appsLdaModels[appsSubrange], appsTrainLabels, appsRfErrors[appsSubrange], 
+                         header="Mobile Apps, bins=25", bins=25, rescale = TRUE)
+
+######################################### Compare models using KL between original and sampled data #########################################
+
+appsSubrangeForSampling <- 1:28
+
+mobileAppsKlDataVsSample <- calculateKlBetweenDataAndSample(tfidfData$cleanedTrainMatrix, appsLdaModels[appsSubrangeForSampling])
+
+dev.new()
+plot(appsRange[appsSubrangeForSampling], mobileAppsKlDataVsSample, type="l")
+
+######################################### Compare models using per-class KL between original and sampled data #########################################
+
+appsSubrangeForSampling <- 1:28
+
+originalTrainMatrix <- as.matrix(tfidfData$cleanedTrainMatrix)
+
+docLengths <- rowSums(originalTrainMatrix)
+appsSamplesFromLdaModels <- lapply(appsLdaModels[appsSubrangeForSampling], function(m){
+  generateCorpusFromModel(m, docLengths)
+})
+
+klAvgs <- calculateAvgKl(range = appsRange[appsSubrangeForSampling], samplesFromModel = appsSamplesFromLdaModels,
+               labels = appsTrainLabels, tfMatrix = tfidfData$cleanedTrainMatrix)
+dev.new()
+plot(appsRange[appsSubrangeForSampling], klAvgs, type="l")
 
 

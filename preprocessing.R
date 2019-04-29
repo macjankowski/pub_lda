@@ -87,7 +87,7 @@ prepareTfIdfWithLabels <- function(politicsData, sparseLevel=.998, ngramCount = 
   cleanedTestMatrix   <- rawMatrices$rawTestMatrix[testRowTotals> 0, ]
   cleanedTestLabels <- test_code[testRowTotals> 0]
   
-  cleanedTestLabels <- factor(cleanedTestLabels, levels=c(0:24))
+  cleanedTestLabels <- factor(cleanedTestLabels, levels=levels(test_code))
   
   rowTotals <- apply(rawMatrices$rawTrainMatrix, 1, sum) #Find the sum of words in each Document
   cleanedTrainMatrix   <- rawMatrices$rawTrainMatrix[rowTotals> 0, ]
@@ -191,3 +191,31 @@ create_matrix <- function (textColumns, language = "english", minDocFreq = 1,
   gc()
   return(matrix)
 }
+
+convertPoliblogToTfIdf <- function(dataset, vocab_length){
+  docs_num <- length(dataset)
+  dataset.df <- data.frame(matrix(0, ncol = vocab_length, nrow = docs_num))
+  for(ind in 1:docs_num){
+    orig_doc <- dataset[[ind]]
+    idxs <- orig_doc[1,] + 1
+    #print(idxs)
+    #print(orig_doc[2,])
+    dataset.df[ind,idxs] <- orig_doc[2,]
+  }
+  dm <- as.DocumentTermMatrix(dataset.df, weighting=weightTf)
+  return(dm)
+}
+
+convertToTfIdf_raw <- function(dataset, vocab_length){
+  docs_num <- length(dataset)
+  dataset.df <- data.frame(matrix(0, ncol = vocab_length, nrow = docs_num))
+  for(ind in 1:docs_num){
+    orig_doc <- dataset[[ind]]
+    idxs <- orig_doc[1,] + 1
+    #print(idxs)
+    #print(orig_doc[2,])
+    dataset.df[ind,idxs] <- orig_doc[2,]
+  }
+  return(dataset.df)
+}
+

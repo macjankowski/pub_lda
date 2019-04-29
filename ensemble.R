@@ -6,7 +6,7 @@ predictUsingRfModel <- function(rfModel, testData){
   b
 }
 
-predictEnsemble <- function(testLabels, rfModels, ldaModels){
+predictEnsemble <- function(rfModels, ldaModels){
   
   l <- list()
   
@@ -33,5 +33,23 @@ errorForEnsembleResult <- function(res, testLabels){
   error <- 1-length(test.result.ensemble)/length(testLabels)
   error
 }
+
+
+# tfidfData$cleanedTestMatrix
+analyseEnsemble <- function(rfModels, ldaModes, labels, testMatrix){
+  
+  resPredictEnsemble <- predictEnsemble(appsRfModels[subRange], appsLdaModels[subRange])
+  mvError <- errorForEnsembleResult(resPredictEnsemble, testLabels)
+  
+  resPredictEnsembleWithScore <- predictWithScoreEnsemble(rfModels, ldaModes)
+  wmvError <- errorForEnsembleWithScoreResult(resPredictEnsembleWithScore$classes, resPredictEnsembleWithScore$scores, labels)
+  
+  chosenModels <- chooseModelUsingPerplexity(testMatrix, ldaModes)
+  errorPerplexityEnsemble(chosenModels, appsLdaModels, appsRfModels)
+  
+  list(mvError, wmvError, perpError)
+}
+
+
 
 

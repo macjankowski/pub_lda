@@ -52,6 +52,16 @@ res_full <- trainAndPredict(tree_number, tfidfData$cleanedTrainMatrix, tfidfData
 plotResults(res_full$testResult$threshold, res_full$testResult$bridgeRatio, res_full$testResult$errorRatio)
 
 res_full$model
+state.x77
+state.region
+aggregate(state.x77, list(La = state.region), mean)
+
+appsDf <- as.data.frame(as.matrix(tfidfData$cleanedTrainMatrix))
+aaa <- aggregate(appsDf, list(Label = trainLabels), length)
+attributes(aaa)
+
+table(trainLabels)
+
 
 ######################################### LSA 10 topics ##############################################
 
@@ -282,12 +292,12 @@ testData <- ldaModels[[3]]$ldaTestData
 
 ####################################### ensemble without score #############################################
 
-res <- predictEnsemble(testLabels, rfModels, ldaModels)
+res <- predictEnsemble(rfModels, ldaModels)
 errorForEnsembleResult(res, testLabels)
 
 ####################################### ensemble without score on best models only #############################################
 
-res <- predictEnsemble(testLabels, rfModels, ldaModels)
+res <- predictEnsemble(rfModels, ldaModels)
 errorForEnsembleResult(res, testLabels)
 
 ####################################### ensemble with score #############################################
@@ -471,3 +481,8 @@ subLdaModels <- ldaModels[subRange]
 
 res <- predictWithScoreEnsemble(subRfModels, subLdaModels)
 errorForEnsembleWithScoreResult(res$classes, res$scores, testLabels)
+
+
+v <-c(0.0001, 0.999,0.998,0.997,0.996)
+vResc <- rescale(100^v)
+plot(c(1,2,3,4,5), vResc, type="l")

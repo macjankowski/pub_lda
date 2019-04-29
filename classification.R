@@ -73,7 +73,15 @@ trainAndPredictSimple <- function(tree_number, trainData, trainLabels, testData,
 }
 
 predictSimple <- function(model, testData, testLabels){
-  out <- as.integer(predict(model, as.matrix(testData)))-1
+  p <- predict(model, as.matrix(testData))
+  out <- as.integer(p)-1
+  test.result <- out[out != testLabels]
+  errorRate <- length(test.result)/length(testLabels)
+  errorRate
+}
+
+predictSimpleLinearDiscriminantAnalysis <- function(model, testData, testLabels){
+  out <- as.integer(predict(model, as.matrix(testData))$class)-1
   test.result <- out[out != testLabels]
   errorRate <- length(test.result)/length(testLabels)
   errorRate
@@ -93,3 +101,17 @@ trainSVMOnLda <- function(ldaModel, trainLabels){
   svmModel
 }
 
+trainNbOnLda <- function(ldaModel, trainLabels){
+  trainData <- ldaModel$ldaTrainData
+  testData <- ldaModel$ldaTestData
+  m <- naive_bayes(x=as.matrix(trainData), y=trainLabels, laplace = 0.000001)
+  m
+}
+
+trainLinearDiscriminantAnalysisOnLda <- function(ldaModel, trainLabels){
+  print(paste("Training LDA for k=",ldaModel$topicmodel@k))
+  trainData <- ldaModel$ldaTrainData
+  testData <- ldaModel$ldaTestData
+  m <- lda(x=as.matrix(trainData), grouping = trainLabels)
+  m
+}

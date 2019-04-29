@@ -1,5 +1,8 @@
 
 library("ldatuning")
+library(arules)
+library(infotheo)
+library(entropy)
 
 source('./dimRed.R')
 source('./classification.R')
@@ -80,9 +83,9 @@ geometricMean <- function(x){
   exp(mean(log(x)))
 }
 
-avg_mi_single_model <- function(data, labels){
+avg_mi_single_model <- function(data, labels, bins=25){
   f <- function(i){ 
-    d <- as.numeric(discretize(data[,i], method = "frequency", categories = 25, onlycuts=FALSE))
+    d <- as.numeric(arules::discretize(data[,i], method = "frequency", categories = bins, onlycuts=FALSE))
     mi.plugin(rbind(d, as.numeric(labels))) #+ mi.plugin(rbind(as.numeric(labels), d)) 
   }
   
@@ -90,7 +93,7 @@ avg_mi_single_model <- function(data, labels){
   
   #mis <- as.numeric(discretize(data, method = "frequency", categories = 25, onlycuts=FALSE))
   
-  print(mean(mis))
+  #print(mean(mis))
   mean(mis)
 }
 
@@ -124,8 +127,18 @@ avgEntropyForModel <- function(ldaModel){
   posterior <- posterior(ldaModel$topicmodel)
   #entropy.plugin(posterior$terms)
   N <- length(posterior$terms)
-  mean(apply(posterior$terms, 2, function(doc){
+  mean(apply(posterior$terms, 1, function(doc){
     entropy.plugin(doc)
+  }))
+}
+
+avgMultinomialEntropyForModel <- function(ldaModel){
+  posterior <- posterior(ldaModel$topicmodel)
+  #entropy.plugin(posterior$terms)
+  mean(apply(posterior$terms, 1, function(doc){
+    min = min(doc[doc >0])
+    y <- doc *(1/min)
+    entropy.ChaoShen(y)
   }))
 }
 
@@ -159,4 +172,86 @@ avgEntropyForPosterior2 <- function(ldaModel){
   #mean(apply(posterior$topics, 1, entropy.plugin))
   entropy.plugin(posterior$topics)
 }
+
+conditionalEntropy<- function(ldaModel, labels, bins=10, runOnTest = FALSE, discretizeMethod="frequency"){
+  data <- if(runOnTest){
+    ldaModel$ldaTestData
+  }else{
+    ldaModel$ldaTrainData
+  }
+  conditionalEntropyOnData(data, labels, bins, runOnTest = runOnTest, discretizeMethod = discretizeMethod)
+}
+
+conditionalEntropyOnData<- function(data, labels, bins=10, runOnTest = FALSE, discretizeMethod="frequency"){
+  nRows <- dim(data)[1]
+  nCols <- dim(data)[2]
+  rawDisc <- arules::discretize(data, method = discretizeMethod, categories = bins, onlycuts=FALSE)
+  trainDisc <- matrix(as.numeric(rawDisc), nrow = nRows, ncol=nCols)
+  H <- infotheo::condentropy(labels, trainDisc, method = "emp")
+  H
+}
+
+conditionalEntropy2<- function(ldaModel, labels, bins=10){
+  trainData <- ldaModel$ldaTrainData
+  nRows <- dim(trainData)[1]
+  nCols <- dim(trainData)[2]
+  rawDisc <- arules::discretize(trainData, method = "frequency", categories = bins, onlycuts=FALSE)
+  trainDisc <- matrix(as.numeric(rawDisc), nrow = nRows, ncol=nCols)
+  joinedData <- data.frame(trainDisc, labels)
+  joinedDataEntropy <- infotheo::entropy(joinedData,method="emp")
+  print(paste('joinedDataEntropy= ',joinedDataEntropy))
+  trainDiscEntropy <- infotheo::entropy(trainDisc, method = "emp")
+  print(paste('trainDiscEntropy= ',trainDiscEntropy))
+  H <- joinedDataEntropy - trainDiscEntropy
+  H
+}
+
+joinedEntropy<- function(ldaModel, labels, bins=10){
+  trainData <- ldaModel$ldaTrainData
+  nRows <- dim(trainData)[1]
+  nCols <- dim(trainData)[2]
+  rawDisc <- arules::discretize(trainData, method = "frequency", categories = bins, onlycuts=FALSE)
+  trainDisc <- matrix(as.numeric(rawDisc), nrow = nRows, ncol=nCols)
+  joinedData <- data.frame(trainDisc, labels)
+  H <- infotheo::entropy(joinedData,method="emp")
+  H
+}
+
+mutualInfo<- function(ldaModel, labels, bins=10, discretizeMethod="frequency"){
+  trainData <- ldaModel$ldaTrainData
+  mutualInfoOnData(trainData, labels, bins, discretizeMethod)
+}
+
+mutualInfoOnData<- function(trainData, labels, bins=10, discretizeMethod="frequency"){
+  nRows <- dim(trainData)[1]
+  nCols <- dim(trainData)[2]
+  rawDisc <- arules::discretize(trainData, method = discretizeMethod, categories = bins, onlycuts=FALSE)
+  trainDisc <- matrix(as.numeric(rawDisc), nrow = nRows, ncol=nCols)
+  MI <- infotheo::mutinformation(X=labels, Y=trainDisc, method="emp")
+  MI
+}
+
+avg_mi_single_model_2 <- function(ldaModel, labels, bins=25, discretizeMethod="frequency"){
+
+  trainData <- ldaModel$ldaTrainData
+  avg_mi_single_model_2_on_data(trainData, labels, bins, discretizeMethod)
+}
+
+avg_mi_single_model_2_on_data <- function(trainData, labels, bins=25, discretizeMethod="frequency"){
+  
+  nRows <- dim(trainData)[1]
+  nCols <- dim(trainData)[2]
+  rawDisc <- arules::discretize(trainData, method = discretizeMethod, categories = bins, onlycuts=FALSE)
+  trainDisc <- matrix(as.numeric(rawDisc), nrow = nRows, ncol=nCols)
+  
+  mis <- apply(trainDisc, 2, function(col){
+    infotheo::mutinformation(X=col, Y=labels, method="emp")
+  })
+  mean(mis)
+}
+
+
+
+
+
 

@@ -1,6 +1,7 @@
 library("topicmodels")
 library("lsa")
 library("svs")
+library(topicmodels)
 
 SEED <- 2100
 

@@ -7,6 +7,8 @@ library(ggplot2)
 library(reshape2)
 library(rpart)
 library(e1071)
+library(naivebayes)
+
 
 
 
@@ -16,6 +18,9 @@ source('./classification.R')
 source('./validation.R')
 source('./choose_model.R')
 source('./ensemble.R')
+source('./charts.R')
+source('./multTest.R')
+source('./sampleFromModel.R')
 
 tree_number <- 500
 
@@ -56,6 +61,8 @@ dim(partitionedReviews$test)
 
 partitionedReviewsTF <- prepareTfIdfWithLabels(partitionedReviews, sparseLevel=0.95)
 
+partitionedReviewsTF$cleanedTestLabels
+
 dim(partitionedReviewsTF$cleanedTrainMatrix)
 length(partitionedReviewsTF$cleanedTrainLabels)
 dim(partitionedReviewsTF$cleanedTestMatrix)
@@ -74,6 +81,22 @@ reviewsSVMModel
 
 predictSimple(reviewsSVMModel, partitionedReviewsTF$cleanedTestMatrix, partitionedReviewsTF$cleanedTestLabels)
 
+
+# naive bayes
+
+reviewsNbModel <- naive_bayes(x=as.matrix(partitionedReviewsTF$cleanedTrainMatrix), y=reviewsTrainLabels, laplace = 0.0001)
+reviewsNbModel
+
+predictSimple(reviewsNbModel, partitionedReviewsTF$cleanedTestMatrix, partitionedReviewsTF$cleanedTestLabels)
+
+# linear discriminant analysis
+reviewsLinearDAModel <- lda(x=as.matrix(partitionedReviewsTF$cleanedTrainMatrix), grouping = reviewsTrainLabels)
+reviewsLinearDAModel
+
+predictSimpleLinearDiscriminantAnalysis(reviewsLinearDAModel, as.matrix(partitionedReviewsTF$cleanedTestMatrix), partitionedReviewsTF$cleanedTestLabels)
+
+reviewsGlmModel <- glm.fit(x=as.matrix(partitionedReviewsTF$cleanedTrainMatrix), y = reviewsTrainLabels)
+reviewsGlmModel
 
 ######################################### experiment up to 1000 topics ##############################################
 
@@ -99,8 +122,26 @@ reviewsSVMErrors <- sapply(1:length(reviewsRange), function(i){
   predictSimple(reviewsSVMModels[[i]], reviewsLdaModels[[i]]$ldaTestData, reviewsTestLabels)
 })
 
+reviewsNbModels <- lapply(reviewsLdaModels, function(x){
+  trainNbOnLda(x, reviewsTrainLabels)
+})
+
+reviewsNbErrors <- sapply(1:length(reviewsRange), function(i){
+  predictSimple(reviewsNbModels[[i]], reviewsLdaModels[[i]]$ldaTestData, reviewsTestLabels)
+})
+
+reviewsLinearDiscriminantAnalysisModels <- lapply(reviewsLdaModels, function(x){
+  trainLinearDiscriminantAnalysisOnLda(x, reviewsTrainLabels)
+})
+
+reviewsLinearDiscriminantAnalysisErrors <- sapply(1:length(reviewsRange), function(i){
+  predictSimpleLinearDiscriminantAnalysis(reviewsLinearDiscriminantAnalysisModels[[i]], reviewsLdaModels[[i]]$ldaTestData, reviewsTestLabels)
+})
+
 plot(reviewsRange, reviewsSVMErrors, type="l")
 plot(reviewsRange, reviewsRfErrors, type="l")
+plot(reviewsRange, reviewsNbErrors, type="l")
+
 
 ######################################### Estimate topic count ENTROPY ##############################################
 length(reviewsLdaModels)
@@ -246,6 +287,7 @@ ggplot(data = reviewsDfggplotMelted, aes(x = reviewsRange, y = value, color = fa
 
 ############################################## perplexities ########################################
 
+length(reviewsLdaModels)
 reviewsPerplexities <- sapply(reviewsLdaModels, function(x){ perplexity(x$topicmodel, partitionedReviewsTF$cleanedTestMatrix)})
 
 plot(reviewsRange, reviewsPerplexities, type="l")
@@ -392,4 +434,276 @@ ggplot(data = reviewsPosteriorEntropyWithClassificationErrorsMelted_300, aes(x =
   color = factor(variable, labels = c("Likelihood", "Average entropy of topics proportions", "Random Forest error", "SVM Error","Random Forest error (no alpha fitting)")))) + 
   geom_point() + geom_line(size=1) + 
   labs(x = "Topics number", y="Value", color="Variable") + theme_classic(base_size = 18)
+
+#################################### analyse posterior ###################################
+
+analysePosteriorEntropy(reviewsRange_300, reviewsLdaModels[1:24], "Moview Reviews")
+
+reviewsLdaModels[[3]]$topicmodel@loglikelihood
+reviewsLdaModels[[3]]$topicmodel@beta
+exp(reviewsLdaModels[[3]]$topicmodel@beta[1:10,1:10])
+
+posterior <- posterior(reviewsLdaModels[[3]]$topicmodel)
+reviewsLdaModels[[3]]$topicmodel@beta
+
+dim(posterior$topics)
+dim(reviewsLdaModels[[3]]$topicmodel@beta)
+
+prob_m <- posterior$topics %*% exp(reviewsLdaModels[[3]]$topicmodel@beta)
+dim(prob_m)
+rowSums(prob_m)
+
+
+######################################### Average entropy ##############################################
+subrange = 1:28
+analyseAverageEntropy(reviewsRange[subrange], reviewsLdaModels[subrange], reviewsRfErrors[subrange], 
+                      reviewsSVMErrors[subrange], rescale=TRUE, header="Movie Reviews")
+
+######################################### Estimate topic count conditional entropy ENTROPY ##############################################
+
+infotheo::entropy(reviewsTrainLabels,method="emp")
+
+movieRevieSubrange = 1:24
+analyseJoinedEntropy(reviewsRange[movieRevieSubrange], reviewsLdaModels[movieRevieSubrange], reviewsTrainLabels, reviewsRfErrors[movieRevieSubrange], 
+                     reviewsSVMErrors[movieRevieSubrange], header="Movie Reviews, bins=2", bins=2)
+
+analyseConditionalEntropy(reviewsRange[movieRevieSubrange], reviewsLdaModels[movieRevieSubrange], as.numeric(reviewsTrainLabels), reviewsRfErrors[movieRevieSubrange], 
+                     reviewsSVMErrors[movieRevieSubrange], header="Movie Reviews, bins=2", bins=2)
+
+dev.new()
+analyseMutualInformation(reviewsRange[movieRevieSubrange], reviewsLdaModels[movieRevieSubrange], as.numeric(reviewsTrainLabels), reviewsRfErrors[movieRevieSubrange], 
+                          reviewsSVMErrors[movieRevieSubrange], header="Movie Reviews, bins=2", bins=2, rescale=TRUE)
+
+conditionalEntropy2(reviewsLdaModels[[5]], reviewsTrainLabels, bins=2)
+
+as.numeric(reviewsTrainLabels)
+
+
+
+ttt <- reviewsLdaModels[[28]]$ldaTrainData
+nRows <- dim(ttt)[1]
+nCols <- dim(ttt)[2]
+rawDisc <- arules::discretize(ttt, method = "frequency", categories = 2, onlycuts=FALSE)
+trainDisc <- matrix(as.numeric(rawDisc), nrow = nRows, ncol=nCols)
+joinedData <- data.frame(as.numeric(reviewsTrainLabels), trainDisc)
+joinedData
+joinedEntr <- infotheo::entropy(joinedData,method="emp") 
+dataentr <-  infotheo::entropy(trainDisc, method = "emp")
+joinedEntr
+dataentr
+
+H = joinedEntr - dataentr
+H
+
+############################ ensemble #############################
+
+reviewsLdaModels[[1]]$topicmodel
+
+partitionedReviewsTF$cleanedTestMatrix[4,]
+
+perplexity(reviewsLdaModels[[1]]$topicmodel, partitionedReviewsTF$cleanedTestMatrix[4,])
+
+
+subrange=7:13
+movieReviewsChosenModels <- chooseModelUsingPerplexity(partitionedReviewsTF$cleanedTestMatrix, reviewsLdaModels[subrange])  
+cbind(1:length(reviewsRfErrors), reviewsRange, reviewsRfErrors)
+
+reviewsLdaModels[[13]]$topicmodel@k
+betaDistribution <- exp(reviewsLdaModels[[13]]$topicmodel@beta)
+dim(betaDistribution)
+delta <- diri.est(betaDistribution[,1:500])
+delta
+
+######################################### Compare models using KL between original and sampled data #########################################
+
+reviewsSubrangeForSampling <- 1:28
+reviewsKlDataVsSample <- calculateKlBetweenDataAndSample(partitionedReviewsTF$cleanedTrainMatrix, reviewsLdaModels[reviewsSubrangeForSampling])
+
+dev.new()
+plot(reviewsRange[reviewsSubrangeForSampling], reviewsKlDataVsSample, type="l")
+
+######################################### Compare models using per-class KL between original and sampled data #########################################
+
+ssss <- generateCorpusFromModel(reviewsLdaModels[[2]], reviewsDocLengths)
+
+reviewsTrainMatrix <- as.matrix(partitionedReviewsTF$cleanedTrainMatrix)
+
+reviewsDocLengths <- rowSums(reviewsTrainMatrix)
+reviewsSamplesFromLdaModels <- lapply(reviewsLdaModels[reviewsSubrangeForSampling], function(m){
+  generateCorpusFromModel(m, reviewsDocLengths)
+})
+
+reviewsKlAvgs <- calculateAvgKl(range = reviewsRange[reviewsSubrangeForSampling], samplesFromModel = reviewsSamplesFromLdaModels,
+                         labels = reviewsTrainLabels, tfMatrix = partitionedReviewsTF$cleanedTrainMatrix)
+dev.new()
+plot(reviewsRange[reviewsSubrangeForSampling], reviewsKlAvgs, type="l")
+
+######################################### MultinomialTest #########################################
+
+reviewsSubrangeForSampling <- 1:28
+reviewsKlDataVsSample <- calculateKlBetweenDataAndSample(partitionedReviewsTF$cleanedTrainMatrix, reviewsLdaModels[reviewsSubrangeForSampling])
+
+reviewMultTest <- aaa(partitionedReviewsTF$cleanedTrainMatrix, reviewsSamplesFromLdaModels[[6]])
+reviewMultTest
+
+######################################### Chi squared test #######################################
+
+reviewsOriginalTrainMatrix <- as.matrix(partitionedReviewsTF$cleanedTrainMatrix)
+reviewsDataMultinomialDistribution <- estimateMultinomialFromCorpus(reviewsOriginalTrainMatrix)
+
+############### chi-sq with itself - obviously passed ######################
+
+obsNult <- colSums(reviewsOriginalTrainMatrix)
+t <- chisq.test(obsNult, p = reviewsDataMultinomialDistribution)
+t$p.value
+
+############## chi-sq with subset of itself - passed as expected ########################
+shuffled <- sample(1:1108, 500, replace = FALSE)
+obsNultSubset <- colSums(reviewsOriginalTrainMatrix[shuffled, ])
+t <- chisq.test(obsNultSubset, p = reviewsDataMultinomialDistribution)
+t$p.value
+
+############# chi-sq with subset pertaining to one of the classes ##############################
+
+subsetForClass_1 <- which(reviewsTrainLabels==1)
+obsMultSubsetForClass_1 <- colSums(reviewsOriginalTrainMatrix[subsetForClass_1, ])
+t <- chisq.test(obsMultSubsetForClass_1, p = reviewsDataMultinomialDistribution)
+t$p.value
+t$statistic
+
+subsetForClass_0 <- which(reviewsTrainLabels==0)
+reviewsDataMultinomialDistributionClass_0 <- estimateMultinomialFromCorpus(reviewsOriginalTrainMatrix[subsetForClass_0, ])
+
+subsetForClass_1 <- which(reviewsTrainLabels==1)
+obsMultSubsetForClass_1 <- colSums(reviewsOriginalTrainMatrix[subsetForClass_1, ])
+t <- chisq.test(obsMultSubsetForClass_1, p = reviewsDataMultinomialDistributionClass_0)
+t$p.value
+t$statistic
+
+
+###########################################################
+
+dim(reviewsOriginalTrainMatrix)
+
+sample1ObservedCounts <- observedCountsFromCorpus(reviewsSamplesFromLdaModels[[13]])
+
+t <- chisq.test(sample1ObservedCounts, p = reviewsDataMultinomialDistribution)
+
+t$statistic
+t$p.value
+t$parameter
+
+reviewsSubrangeForSampling <- 1:28
+reviewsPValueDataVsSample <- calculatePValueBetweenDataAndSample(
+  partitionedReviewsTF$cleanedTrainMatrix, 
+  reviewsLdaModels[reviewsSubrangeForSampling],
+  reviewsSamplesFromLdaModels
+)
+
+chi = calculatePValueBetweenDataAndSampleForClass(
+  partitionedReviewsTF$cleanedTrainMatrix, 
+  reviewsLdaModels[reviewsSubrangeForSampling],
+  reviewsSamplesFromLdaModels,
+  labels = reviewsTrainLabels
+)
+sapply(chi, function(c){c$p.value})
+sapply(chi, function(c){c$statistic})
+
+
+dev.new()
+plot(reviewsRange[reviewsSubrangeForSampling], reviewsPValueDataVsSample, type="l")
+
+calculatePValuePerClassForModel(
+  classIndex = 0, 
+  labels = reviewsTrainLabels, 
+  originalTrainTf = partitionedReviewsTF$cleanedTrainMatrix,
+  sampleFromModel = reviewsSamplesFromLdaModels[[13]]
+)
+
+
+######################################### per class p-value ############################################
+
+reviewsSubrangeForSampling<-1:28
+reviewsPValueDataVsSampleSubset <- calculatePerClassPValueBetweenDataAndSample(
+  originalTrainTf = partitionedReviewsTF$cleanedTrainMatrix,
+  models = reviewsLdaModels[reviewsSubrangeForSampling],
+  labels = reviewsTrainLabels,
+  classLabel = 0
+)
+reviewsPValueDataVsSampleSubset[reviewsPValueDataVsSampleSubset > 0.05]
+reviewsPValueDataVsSampleSubset
+
+######################################### per class kl ############################################
+
+reviewsSubrangeForSampling<-1:28
+reviewsKlDataVsSampleSubset <- calculateKlPerClassForModel(
+  classIndex = 0,
+  labels = reviewsTrainLabels,
+  originalTrainTf = partitionedReviewsTF$cleanedTrainMatrix,
+  sampleFromModel = reviewsSamplesFromLdaModels[[13]]
+)
+#reviewsKlDataVsSampleSubset[reviewsKlDataVsSampleSubset > 0.05]
+reviewsKlDataVsSampleSubset
+
+###################################### per class likelihood #################################
+
+log_likelihood <- modelPerClassLikelihood(
+  labels = reviewsTrainLabels,
+  originalTrainTf = partitionedReviewsTF$cleanedTrainMatrix,
+  sampleFromModel = reviewsSamplesFromLdaModels[[11]]
+)
+log_likelihood
+
+logLikelihoodsForModels <- lapply(reviewsSamplesFromLdaModels, function(sample){
+  modelPerClassLikelihood(
+    labels = reviewsTrainLabels,
+    originalTrainTf = partitionedReviewsTF$cleanedTrainMatrix,
+    sampleFromModel = sample
+  )
+})
+
+plot(reviewsRange, logLikelihoodsForModels, type="l")
+reviewsRange[which.min(unlist(logLikelihoodsForModels))]
+
+logLikelihoodsForModels_onTest <- unlist(lapply(reviewsSamplesFromLdaModels, function(sample){
+  modelPerClassLikelihood(
+    labels = reviewsTestLabels,
+    originalTrainTf = partitionedReviewsTF$cleanedTestMatrix,
+    sampleFromModel = sample
+  )
+}))
+
+plot(reviewsRange, logLikelihoodsForModels_onTest, type="l")
+reviewsRange[order(logLikelihoodsForModels_onTest, decreasing = TRUE)]
+
+
+reviewsRange[which.min(logLikelihoodsForModels_onTest[logLikelihoodsForModels_onTest != min(logLikelihoodsForModels_onTest)])]
+
+n <- length(logLikelihoodsForModels_onTest)
+sort(logLikelihoodsForModels_onTest,partial=n-1)[n-1]
+
+################################## lik for model #########################
+
+logLikelihoodsForModels_2 <- unlist(lapply(reviewsSamplesFromLdaModels, function(sample){
+  calculateLikelihoodForModel(
+    labels = reviewsTrainLabels,
+    originalTrainTf = partitionedReviewsTF$cleanedTrainMatrix,
+    sampleFromModel = sample
+  )
+}))
+plot(reviewsRange, logLikelihoodsForModels_2, type="l")
+reviewsRange[order(logLikelihoodsForModels_2, decreasing = FALSE)]
+
+## on test ##############
+logLikelihoodsForModels_onTest_2 <- unlist(lapply(reviewsSamplesFromLdaModels, function(sample){
+  calculateLikelihoodForModel(
+    labels = reviewsTestLabels,
+    originalTrainTf = partitionedReviewsTF$cleanedTestMatrix,
+    sampleFromModel = sample
+  )
+}))
+plot(reviewsRange, logLikelihoodsForModels_onTest_2, type="l")
+reviewsRange[order(logLikelihoodsForModels_onTest_2, decreasing = TRUE)]
+
+
 
